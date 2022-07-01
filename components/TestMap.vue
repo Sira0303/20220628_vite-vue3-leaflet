@@ -1,4 +1,9 @@
 <template>
+        <button @click="onLeafletReady('../20220622.json')">pic1</button>
+        <button @click="onLeafletReady('../20220501.json')">pic2</button>
+        <button @click="onLeafletReady('../20220502.json')">pic3</button>
+        <button @click="onLeafletReady('../20220503.json')">pic4</button>
+
 
 
   <l-map
@@ -7,20 +12,18 @@
     :zoom="zoom"
     :center="{ lat:25.06108073603067, lng: 121.56835445788387 }"
     @ready="onLeafletReady"
-  >
+   >
     <template v-if="leafletReady">
       <l-tile-layer :url="url" />
       <marker-cluster
         :options="{ showCoverageOnHover: false, chunkedLoading: true }"
       >
-        <l-marker :lat-lng="[25, 121]" />
 
-      <template v-for="data in datas"> 
+      <template v-for="data in datas" > 
 
-        <l-marker :lat-lng="[`${data.latitude}`, `${data.longitude}`]" />
+        <l-marker :lat-lng="[`${data.latitude}`, `${data.longitude}`]" ></l-marker>
 
        </template>  
-
      
       </marker-cluster>
     </template>
@@ -30,7 +33,7 @@
 import "leaflet/dist/leaflet.css";
 import axios from 'axios'
 
-import { LMap, LMarker, LTileLayer } from "@vue-leaflet/vue-leaflet/src/lib";
+import { LMap, LMarker, LTileLayer,LPopup} from "@vue-leaflet/vue-leaflet/src/lib";
 import MarkerCluster from "./MarkerCluster.vue";
 
 export default {
@@ -38,6 +41,7 @@ export default {
     LMap,
     LTileLayer,
     LMarker,
+    LPopup,
     // LControl,
     // LDomUtil,
     MarkerCluster,
@@ -46,10 +50,11 @@ export default {
   data() {
     return {
       url: "https://{s}.tile.osm.org/{z}/{x}/{y}.png",
-      zoom: 1,
+      zoom: 13,
 
       leafletReady: false,
       leafletObject: null,
+      json:'../20220622.json',
 
       visible: false,
 
@@ -62,66 +67,72 @@ export default {
   },
 
   methods: {
-    async onLeafletReady() {
+   
+    async onLeafletReady(api) {
       await this.$nextTick();
       this.leafletObject = this.$refs.map.leafletObject;
       this.leafletReady = true;
+this.json=api
+console.log(api)
+       axios.get(api)
+          .then((response)=>{
+            let data=response.data;
+            let newData={}
+            // console.log(this.info)
+            // console.log(this.info[0].latitude)
+            for ( let i = 0; i < data.length; i++) {
+        const longitude = data[i].longitude
+        const latitude = data[i].latitude
+        const key = longitude + '-' + latitude
 
-       axios.get("../20220622.json")
-    .then((response)=>{
-      let data=response.data;
-      let newData={}
-      // console.log(this.info)
-      // console.log(this.info[0].latitude)
-      for ( let i = 0; i < data.length; i++) {
-  const longitude = data[i].longitude
-  const latitude = data[i].latitude
-  const key = longitude + '-' + latitude
+        // 如果新資料中還沒有
+        if (!newData[key]) {
+          newData[key] = []
+          newData[key].push(data[i])
+        } else {
+          newData[key].push(data[i])
+        }
+      }
+      // console.log('newData', newData)
+      return newData
+            })
+            .then((newData)=>{
+      const array = Object.values(newData)
+      const averageArray = []
 
-  // 如果新資料中還沒有
-  if (!newData[key]) {
-    newData[key] = []
-    newData[key].push(data[i])
-  } else {
-    newData[key].push(data[i])
-  }
-}
-// console.log('newData', newData)
-return newData
-      })
-      .then((newData)=>{
-const array = Object.values(newData)
-const averageArray = []
+      for (let i = 0; i < array.length; i++) {
 
-for (let i = 0; i < array.length; i++) {
+        const placeArray = array[i]
+        //placeArray是依照位置把它們分組
+        const averageReq = placeArray.reduce((total, item) => Number(item.request_processing_time) + total, 0) / array.length
+        const sumReq = placeArray.reduce((total, item) => Number(item.request_processing_time) + total, 0)
+        const averageTarget = placeArray.reduce((total, item) => Number(item.target_processing_time) + total, 0) / array.length
+        const sumTarget = placeArray.reduce((total, item) => Number(item.target_processing_time) + total, 0)
+        const averageRes = placeArray.reduce((total, item) => Number(item.response_processing_time) + total, 0) / array.length
+        const sumRes = placeArray.reduce((total, item) => Number(item.response_processing_time) + total, 0)
 
-  const placeArray = array[i]
-  //placeArray是依照位置把它們分組
-  const averageReq = placeArray.reduce((total, item) => Number(item.request_processing_time) + total, 0) / array.length
-  const sumReq = placeArray.reduce((total, item) => Number(item.request_processing_time) + total, 0)
-  const averageTarget = placeArray.reduce((total, item) => Number(item.target_processing_time) + total, 0) / array.length
-  const sumTarget = placeArray.reduce((total, item) => Number(item.target_processing_time) + total, 0)
-  const averageRes = placeArray.reduce((total, item) => Number(item.response_processing_time) + total, 0) / array.length
-  const sumRes = placeArray.reduce((total, item) => Number(item.response_processing_time) + total, 0)
-
-  const result = {
-    longitude: placeArray[0].longitude,
-    latitude: placeArray[0].latitude,
-    averageReq: averageReq,
-    sumReq: sumReq,
-    averageTarget: averageTarget,
-    sumTarget: sumTarget,
-    averageRes: averageRes,
-    sumRes: sumRes
-  }
-  averageArray.push(result)
-}
-// console.log('averageArray', averageArray)
-this.datas= averageArray
-// console.log(this.datas)
-      })
+        const result = {
+          longitude: placeArray[0].longitude,
+          latitude: placeArray[0].latitude,
+          averageReq: averageReq,
+          sumReq: sumReq,
+          averageTarget: averageTarget,
+          sumTarget: sumTarget,
+          averageRes: averageRes,
+          sumRes: sumRes
+        }
+        averageArray.push(result)
+      }
+      // console.log('averageArray', averageArray)
+      this.datas= averageArray
+      // console.log(this.datas)
+            })
  
     },
+    changePic(api){
+      this.json=api
+    }
+    
 //     onClick(){
 // this.info=LControl
 //      this.info.onAdd = function (map) {
@@ -144,13 +155,6 @@ this.datas= averageArray
 // info.addTo(map);
 //     }
   },
-  // mounted(){
-  //   axios.get("../20220622.json")
-  //   .then((response)=>{
-  //     this.info=response.data;
-  //     console.log(this.info)
-  //     console.log(this.info[0].latitude)
-  //     })
-  // }
+ 
 };
 </script>
